@@ -1,0 +1,14 @@
+# Esto es un comentario de prueba
+variable   + 5 * -11 = otraVariable + 2.25
+variable3 = -15.52 + variablenNueva
+
+""" comentario """
+
+def funcion(parametro):
+    for ( i = 0 )
+        if ( variable = Variable )
+            x + variable = 5
+        if not x in variable:
+            variable = " BUENAS TARDES "
+
+nueva = funcion()

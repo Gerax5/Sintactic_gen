@@ -1,0 +1,24 @@
+/* Parser simple que reconoce asignaciones y expresiones aritméticas */
+
+%token IDENTIFICADOR
+%token NUMBER
+%token PLUS
+%token MINUS
+%token ASSIGN
+
+%%
+
+operacion:
+    IDENTIFICADOR ASSIGN expression
+;
+
+expression:
+    expression PLUS term
+  | expression MINUS term
+  | term
+;
+
+term:
+    NUMBER
+  | IDENTIFICADOR
+;

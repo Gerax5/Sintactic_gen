@@ -1,0 +1,16 @@
+(* Ejemplo fácil de YALex. Reconoce identificadores, números, operadores básicos. *)
+
+(* Definiciones de patrones que vamos a usar *)
+let delim = [' ' '\t' '\n']
+let ws = delim+
+
+let letter = ['a'-'z''A'-'Z']
+let digit = ['0'-'9']
+
+rule tokens =
+    ws              { }
+  | letter(letter|digit)* { IDENTIFICADOR }
+  | digit+         { NUMBER }
+  | '+'           { PLUS }
+  | '-'           { MINUS }
+  | '='           { ASSIGN }

@@ -1,0 +1,51 @@
+(* La sección header es opcional *)
+
+(* Definiendo los tokens a usar en este archivo *)
+
+(* Definiendo el break de línea *)
+let delim = [' ''\t''\n']
+let ws = delim+
+
+(* Primer token: expresión regular que solo acepte letras *)
+let letter = ['a'-'z''A'-'Z']
+
+(* Segundo token: expresión regular que acepte números *)
+let digit = ['0'-'9']
+
+(* Tercer token: hacer un digito *)
+let digits = digit+
+
+(* Séptimo token: hacer los signos *)
+let sign = ['+''-']
+
+(* Octavo token: hacer un número *)
+let number = (sign)(digits)','(digits)
+
+(* Quinto token: caracter final *)
+let endline = ['x''y''z']
+
+(* Sexto token: hacer un identificador *)
+let id = letter(letter|digits)*endline
+
+(* El token que detecta las cadenas de caracteres esta puede estar compuesta por letras, números o espacios en blanco *)
+let string = '"'(letter|digit|' ')+'"'
+
+
+let importFROM = from[' ''\t']+['a'-'z''A'-'Z''_']['a'-'z''A'-'Z''0'-'9''_''.']*[' ''\t']+import[' ''\t']+['a'-'z''A'-'Z''_']['a'-'z''A'-'Z''0'-'9''_']*
+
+let import = import[' ''\t']+['a'-'z''A'-'Z''_']['a'-'z''A'-'Z''0'-'9''_']*
+
+(* La sección de trailer es opcional *)
+rule tokens =
+    'IF' {return 'IF'}
+    | 'FOR' {return 'FOR'}
+    | '+' {return 'SUMA'}
+    | '-' {return 'RESTA'}
+    | '*' {return 'MULTIPLICACION'}
+    | '/' {return 'DIVISION'}
+    | '(' {return 'PARENTESIS_IZQUIERDO'}
+    | ')' {return 'PARENTESIS_DERECHO'}
+    | digits {return 'DIGITO'}
+    | number {return 'NUMERO CON DECIMAL'}
+    | id {return 'IDENTIFICADOR'}
+    | string {return 'STRING'}

@@ -1,0 +1,10 @@
+# Esto es un comentario de prueba
+variable   + 5 * -11 = otraVariable + 2
+variable3 - "HOLA SOY UNA VARIABLE DE STR" / -15 = variablenNueva
+
+def funcion(parametro):
+    for ( i = 0 )
+        if ( variable = Variable )
+            x + variable = 5
+
+nueva = funcion()

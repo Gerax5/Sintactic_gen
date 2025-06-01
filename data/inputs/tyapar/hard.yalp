@@ -1,0 +1,72 @@
+/* Parser para un subconjunto de Python utilizando los tokens actualizados de YALex */
+
+%token IF FOR WHILE DEF RETURN IN PRINT
+%token IDENTIFICADOR NUMERO_CON_DECIMAL DIGITO STRING
+%token SUMA RESTA MULTIPLICACION DIVISION
+%token ASIGNACION COMPARACION DIFERENTE MENOR_QUE MAYOR_QUE MENOR_IGUAL_QUE MAYOR_IGUAL_QUE
+%token PARENTESIS_IZQUIERDO PARENTESIS_DERECHO
+%token DOS_PUNTOS COMA
+
+
+%%
+
+programa:
+    programa sentencia
+  | sentencia
+;
+
+sentencia:
+    asignacion
+  | estructura_control
+  | llamada_print
+  | retorno
+;
+
+asignacion:
+    IDENTIFICADOR ASIGNACION expresion
+;
+
+estructura_control:
+    IF expresion DOS_PUNTOS bloque
+  | WHILE expresion DOS_PUNTOS bloque
+  | FOR IDENTIFICADOR IN expresion DOS_PUNTOS bloque
+  | DEF IDENTIFICADOR PARENTESIS_IZQUIERDO parametros PARENTESIS_DERECHO DOS_PUNTOS bloque
+;
+
+llamada_print:
+    PRINT PARENTESIS_IZQUIERDO expresion PARENTESIS_DERECHO
+;
+
+retorno:
+    RETURN expresion
+;
+
+bloque:
+    sentencia
+  | sentencia bloque
+;
+
+parametros:
+    IDENTIFICADOR
+  | IDENTIFICADOR COMA parametros
+;
+
+expresion:
+    expresion SUMA termino
+  | expresion RESTA termino
+  | termino
+;
+
+termino:
+    termino MULTIPLICACION factor
+  | termino DIVISION factor
+  | factor
+;
+
+factor:
+    PARENTESIS_IZQUIERDO expresion PARENTESIS_DERECHO
+  | IDENTIFICADOR
+  | NUMERO_CON_DECIMAL
+  | DIGITO
+  | STRING
+;
