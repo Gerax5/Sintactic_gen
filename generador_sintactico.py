@@ -46,10 +46,11 @@ def generar_parser(
     start_symbol: str,
 ):
     # 1) aplanar tablas
-    action_flat, goto_flat = _flatten_tables(action_table, goto_table)
+    action_flat = dict(action_table)
+    goto_flat = dict(goto_table)
 
     # 2) simplificar producciones → (head, |body|)
-    prods_simple = [(p[0], len(p[1])) for p in productions]
+    prods_simple = dict(productions)
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("""# sintactic.py – Analizador SLR(1) generado automáticamente\n""")
@@ -72,6 +73,10 @@ def generar_parser(
                 stack = [0]
                 i = 0
                 errors = []
+                producciones_numeradas = []
+                for lhs, reglas in PRODUCTIONS.items():
+                    for regla in reglas:
+                        producciones_numeradas.append((lhs, regla))
                 while True:
                     state = stack[-1]
                     tok, lex, line = tokens[i]
@@ -87,7 +92,7 @@ def generar_parser(
                         continue
                     if act.startswith('r'):
                         prod = int(act[1:])
-                        head, blen = PRODUCTIONS[prod]
+                        head, blen = producciones_numeradas[prod]
                         for _ in range(blen*2):
                             stack.pop()
                         goto_state = GOTO.get((stack[-1], head))
@@ -145,7 +150,7 @@ def main():
               follow.follow_set, sorted(set(tokens_decl)))
     slr.build_slr_tables()
 
-    generar_parser(Path(args.output), slr.action_table, slr.goto_table, slr.productions, start)
+    generar_parser(Path(args.output), slr.action_table, slr.goto_table, slr.productions, slr.primeSymbol)
 
 if __name__ == '__main__':
     main()

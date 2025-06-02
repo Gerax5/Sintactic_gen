@@ -5,13 +5,13 @@ import sys
 from collections import deque
 
 # ACTION: (estado, token) -> acción ('sN' / 'rM' / 'acc')
-ACTION = {(0, 'IDENTIFICADOR'): 's1', (1, 'ASSIGN'): 's3', (3, 'IDENTIFICADOR'): 's4', (3, 'NUMBER'): 's5', (6, 'MINUS'): 's8', (6, 'PLUS'): 's9', (6, '$'): 'r0', (8, 'IDENTIFICADOR'): 's4', (8, 'NUMBER'): 's5', (9, 'IDENTIFICADOR'): 's4', (9, 'NUMBER'): 's5', (2, '$'): 'acc', (4, '$'): 'r5', (4, 'MINUS'): 'r5', (4, 'PLUS'): 'r5', (5, '$'): 'r4', (5, 'MINUS'): 'r4', (5, 'PLUS'): 'r4', (7, 'PLUS'): 'r3', (7, 'MINUS'): 'r3', (7, '$'): 'r3', (10, 'PLUS'): 'r2', (10, 'MINUS'): 'r2', (10, '$'): 'r2', (11, 'PLUS'): 'r1', (11, 'MINUS'): 'r1', (11, '$'): 'r1'}
+ACTION = {0: {'IDENTIFICADOR': 's1'}, 1: {'ASSIGN': 's3'}, 3: {'IDENTIFICADOR': 's4', 'NUMBER': 's5'}, 6: {'MINUS': 's8', 'PLUS': 's9', '$': 'r0'}, 8: {'IDENTIFICADOR': 's4', 'NUMBER': 's5'}, 9: {'IDENTIFICADOR': 's4', 'NUMBER': 's5'}, 2: {'$': 'acc'}, 4: {'PLUS': 'r5', 'MINUS': 'r5', '$': 'r5'}, 5: {'PLUS': 'r4', 'MINUS': 'r4', '$': 'r4'}, 7: {'PLUS': 'r3', '$': 'r3', 'MINUS': 'r3'}, 10: {'PLUS': 'r2', '$': 'r2', 'MINUS': 'r2'}, 11: {'PLUS': 'r1', '$': 'r1', 'MINUS': 'r1'}}
 
 # GOTO: (estado, NoTerminal) -> estado
-GOTO = {(0, 'operacion'): 2, (3, 'expression'): 6, (3, 'term'): 7, (8, 'term'): 10, (9, 'term'): 11}
+GOTO = {0: {'operacion': 2}, 3: {'expression': 6, 'term': 7}, 8: {'term': 10}, 9: {'term': 11}}
 
-PRODUCTIONS = [('o', 1), ('e', 1), ('t', 1), ('o', 1)]
-START_SYMBOL = 'operacion'
+PRODUCTIONS = {'operacion': [['IDENTIFICADOR', 'ASSIGN', 'expression']], 'expression': [['expression', 'PLUS', 'term'], ['expression', 'MINUS', 'term'], ['term']], 'term': [['NUMBER'], ['IDENTIFICADOR']], "operacion'": [['operacion']]}
+START_SYMBOL = "operacion'"
 
 
 def parse(token_stream):
@@ -19,29 +19,36 @@ def parse(token_stream):
     stack = [0]
     i = 0
     errors = []
+    producciones_numeradas = []
+    for lhs, reglas in PRODUCTIONS.items():
+        for regla in reglas:
+            producciones_numeradas.append((lhs, regla))
+
     while True:
         state = stack[-1]
         tok, lex, line = tokens[i]
-        act = ACTION.get((state, tok))
+        act = ACTION.get(int(state), {}).get(tok)
         if act is None:
-            errors.append(f"Error de sintaxis en la línea {line if line!=-1 else '?'}: se encontró '{tok}'.")
+            errors.append(f"Error de sintaxis en la línea {line if line!=-1 else '?'}: token inesperado '{tok}' (lexema: '{lex}').")
             return False, errors
         if act == 'acc':
             return True, errors
         if act.startswith('s'):
-            stack.extend([tok, int(act[1:])])
+            # stack.extend([tok, int(act[1:])])
+            stack.append(act[1:])  # Agregar solo el estado, no el token
             i += 1
             continue
         if act.startswith('r'):
             prod = int(act[1:])
-            head, blen = PRODUCTIONS[prod]
-            for _ in range(blen*2):
+            head, blen = producciones_numeradas[prod]
+            for _ in blen:
                 stack.pop()
-            goto_state = GOTO.get((stack[-1], head))
+            newState = int(stack[-1])
+            goto_state = GOTO[newState][head]
             if goto_state is None:
-                errors.append(f"Sin transición GOTO para {head} desde {stack[-1]}")
+                errors.append(f"Error interno del analizador: no se encontró una transición válida (GOTO) para el símbolo {head} desde {stack[-1]}")
                 return False, errors
-            stack.extend([head, goto_state])
+            stack.append(goto_state)
             continue
         errors.append(f"Acción desconocida: {act}")
         return False, errors
