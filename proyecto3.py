@@ -1,326 +1,193 @@
-from __future__ import annotations
-
-import io
-import os
+import importlib.util
+import subprocess
 import sys
-import traceback
-from contextlib import redirect_stdout
-from dataclasses import dataclass
+import tkinter as tk
 from pathlib import Path
-from typing import List, Tuple
-
-from PySide6.QtCore import Qt, QThread, Signal, QSize
-from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import (
-    QApplication,
-    QFileDialog,
-    QLabel,
-    QLineEdit,
-    QMainWindow,
-    QMessageBox,
-    QPushButton,
-    QSizePolicy,
-    QTabWidget,
-    QTextEdit,
-    QVBoxLayout,
-    QWidget,
-)
-
-try:
-    from src.helpers.Utils import (
-        leerYapar,
-        verificar_tokens,
-        verificar_tokens_usados_no_declarados,
-        pre_process_regex,
-    )
-    from src.helpers.first import First
-    from src.helpers.follow import Follow
-    from src.Automata.Automata import Create_automata
-    from src.AutomataLR0.automata import AutomataLR0
-    from src.SLRParsing.SLR import SLR
-    from src.helpers.Lex import Lexer
-except ModuleNotFoundError as e:
-    print("Módulos no encontrados:", e)
+from tkinter import filedialog, messagebox
+from PIL import Image, ImageTk  # Pillow debe estar instalado
 
 
-def human_readable_path(path: str | Path | None) -> str:
-    if path is None:
-        return ""
-    path = Path(path)
-    try:
-        return str(path.relative_to(Path.cwd()))
-    except ValueError:
-        return str(path)
+def _load_module_from_path(module_name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"No se pudo cargar el módulo {module_name} desde {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = mod  # evita duplicados si se recarga
+    spec.loader.exec_module(mod)
+    return mod
 
 
-@dataclass
-class AnalysisResult:
-    lexer_tokens: List[List[Tuple[str, str]]]
-    parser_logs: str
-    lr0_image_path: str | None
-
-
-class AnalyzerWorker(QThread):
-
-    finished = Signal(object)
-
-    def __init__(self, yalex: str, yapar: str, input_txt: str):
-        super().__init__()
-        self.yalex = yalex
-        self.yapar = yapar
-        self.input_txt = input_txt
-
-
-    @staticmethod
-    def build_lexer(yalex_path: str):
-        lex = Lexer()
-        aut = Create_automata()
-        with open(yalex_path, "r", encoding="utf-8") as fh:
-            lex.indentify(fh.readlines())
-        lex.parseLets()
-        regex = pre_process_regex(lex.lets)
-        aut.convertRegex(regex, lex.tokens)
-        return lex, aut
-
-    @staticmethod
-    def run_lexer(lex: Lexer, aut: Create_automata, input_string: str):
-        initial_state = next(
-            st for st, info in aut.ddfa.transitions.items() if info.get("initial")
-        )
-        tokens_en_linea: List[List[Tuple[str, str]]] = []
-        tokens_linea_actual: List[Tuple[str, str]] = []
-        line_number = 1
-        i = 0
-        longitud = len(input_string)
-        replace_map = {"\n": "\\n", "\t": "\\t", "\r": "\\r", " ": " "}
-        specials = set(replace_map)
-        while i < longitud:
-            # Saltar espacios y contar líneas
-            while i < longitud and input_string[i].isspace():
-                if input_string[i] == "\n":
-                    line_number += 1
-                    if tokens_linea_actual:
-                        tokens_en_linea.append(tokens_linea_actual)
-                        tokens_linea_actual = []
-                i += 1
-            if i >= longitud:
-                break
-            current_state = initial_state
-            lexema_actual = ""
-            accion_aceptada = None
-            lexema_aceptado = ""
-            pos_aceptada = -1
-            j = i
-            while j < longitud:
-                c = input_string[j]
-                lexema_actual += c
-                if c not in aut.ddfa.alphabet:
-                    c = replace_map.get(c, f"\\{c}")
-                    if c not in aut.ddfa.alphabet:
-                        break
-                trans = aut.ddfa.transitions[current_state]["transitions"]
-                if c in trans:
-                    if c == "\\n":
-                        line_number += 1
-                    current_state = trans[c]
-                    if aut.ddfa.transitions[current_state]["accept"]:
-                        accion_info = aut.ddfa.transitions[current_state].get("action", "")
-                        accion_aceptada = (
-                            accion_info.get("action", "")
-                            if isinstance(accion_info, dict)
-                            else accion_info
-                        )
-                        lexema_aceptado = lexema_actual
-                        pos_aceptada = j + 1
-                    j += 1
-                else:
-                    break
-            if accion_aceptada and accion_aceptada.strip():
-                tokens_linea_actual.append((accion_aceptada, lexema_aceptado))
-                i = pos_aceptada
-            else:
-                tokens_linea_actual.append((f"ERROR(line {line_number})", input_string[i]))
-                i += 1
-        if tokens_linea_actual:
-            tokens_en_linea.append(tokens_linea_actual)
-        return tokens_en_linea
-
-
-    def run(self):
-        try:
-            # === ANALIZADOR LÉXICO =================================================== #
-            lex, aut = self.build_lexer(self.yalex)
-            with open(self.input_txt, "r", encoding="utf-8") as fh:
-                entrada = fh.read()
-            tokens_por_linea = self.run_lexer(lex, aut, entrada)
-
-            # === ANALIZADOR SINTÁCTICO =============================================== #
-            tokens_decl, producciones, initial_sym = leerYapar(self.yapar)
-            undeclared = verificar_tokens_usados_no_declarados(tokens_decl, producciones)
-            missing = verificar_tokens(lex.tokens_definidos, set(tokens_decl))
-            if undeclared or missing:
-                raise ValueError(
-                    "Inconsistencias entre YALex y YAPar:\n" +
-                    f"  • Tokens usados y no declarados: {undeclared}\n" +
-                    f"  • Tokens declarados en YAPar pero ausentes en YALex: {missing}\n"
-                )
-            no_terminales = list(producciones.keys())
-            terminales = sorted(set(tokens_decl))
-            first = First(producciones)
-            follow = Follow(producciones, first.first, initial_sym)
-            automata = AutomataLR0(producciones, initial_sym)
-            automata.build()
-            automata.graph() 
-            lr0_img = "AAAutmoataLR0/automata_LR0.png" if Path("AAAutmoataLR0/automata_LR0.png").exists() else None
-            slr = SLR(
-                producciones,
-                no_terminales,
-                automata.states,
-                automata.transiciones,
-                automata.estados_id,
-                automata.estado_aceptacion,
-                automata.startSymbolPrime,
-                follow.follow_set,
-                terminales,
-            )
-            slr.build_slr_tables()
-
-            parser_output = io.StringIO()
-            with redirect_stdout(parser_output):
-                for linea in tokens_por_linea:
-                    to_parse = [tk for tk, _ in linea]
-                    slr.parse(to_parse)
-                    print("\n\n")
-            result = AnalysisResult(
-                lexer_tokens=tokens_por_linea,
-                parser_logs=parser_output.getvalue(),
-                lr0_image_path=lr0_img,
-            )
-            self.finished.emit(result)
-        except Exception as exc:
-            traceback.print_exc()
-            self.finished.emit(exc)
-
-
-class MainWindow(QMainWindow):
+class AnalizadorGUI(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Analizador SLR")
-        self.resize(1000, 700)
-        self.yalex_path: str | None = None
-        self.yapar_path: str | None = None
-        self.input_path: str | None = None
-        self.worker: AnalyzerWorker | None = None
+        self.title("Generador y Evaluador – YALex / YAPar")
+        self.minsize(900, 600)
 
-        central = QWidget()
-        self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
+        self.yal_path = tk.StringVar()
+        self.yalp_path = tk.StringVar()
+        self.test_path = tk.StringVar()
+        self.lexer_out = tk.StringVar(value="lexer.py")
+        self.parser_out = tk.StringVar(value="sintactic.py")
 
-        self.yalex_line = QLineEdit(); self.yalex_line.setReadOnly(True)
-        self.yapar_line = QLineEdit(); self.yapar_line.setReadOnly(True)
-        self.input_line = QLineEdit(); self.input_line.setReadOnly(True)
-        for le in (self.yalex_line, self.yapar_line, self.input_line):
-            le.setPlaceholderText("(Archivo no seleccionado)")
+        self._build_file_selectors()
+        self._build_buttons()
+        self._build_output_panel()
+        self._build_image_panel()
 
-        def make_row(text: str, btn_txt: str, slot):
-            row = QWidget(); l = QVBoxLayout(row); l.setContentsMargins(0,0,0,0)
-            lbl = QLabel(text); lbl.setStyleSheet("font-weight:600")
-            hl = QWidget(); hlayout = QVBoxLayout(hl); hlayout.setContentsMargins(0,0,0,0)
-            hlayout.addWidget(btn := QPushButton(btn_txt))
-            btn.clicked.connect(slot)
-            l.addWidget(lbl)
-            l.addWidget(hl)
-            return row
+    def _build_file_selectors(self):
+        frm = tk.LabelFrame(self, text="Archivos de entrada", padx=6, pady=4)
+        frm.pack(fill="x", padx=10, pady=8)
 
-        layout.addWidget(make_row("Especificación YALex", "Seleccionar .yalex", self.pick_yalex))
-        layout.addWidget(self.yalex_line)
-        layout.addWidget(make_row("Especificación YAPar", "Seleccionar .yapar", self.pick_yapar))
-        layout.addWidget(self.yapar_line)
-        layout.addWidget(make_row("Archivo de prueba", "Seleccionar .txt", self.pick_input))
-        layout.addWidget(self.input_line)
+        def _row(parent, label, text_var, cmd):
+            row = tk.Frame(parent)
+            row.pack(fill="x", pady=2)
+            tk.Label(row, text=label, width=14, anchor="w").pack(side="left")
+            tk.Entry(row, textvariable=text_var, width=70).pack(side="left", expand=True, fill="x")
+            tk.Button(row, text="Examinar", command=cmd).pack(side="left", padx=4)
 
-        self.run_btn = QPushButton("Ejecutar análisis")
-        self.run_btn.clicked.connect(self.run_analysis)
-        self.run_btn.setEnabled(False)
-        layout.addWidget(self.run_btn)
+        _row(frm, ".yal:", self.yal_path, lambda: self._browse(self.yal_path, ("Archivos YALex", "*.yal")))
+        _row(frm, ".yalp:", self.yalp_path, lambda: self._browse(self.yalp_path, ("Archivos YAPar", "*.yalp")))
+        _row(frm, "Entrada .txt:", self.test_path, lambda: self._browse(self.test_path, ("Texto", "*.txt")))
 
-        self.tabs = QTabWidget(); layout.addWidget(self.tabs)
-        # Tab 0: Autómata LR(0)
-        self.lr0_label = QLabel("Genera el autómata para verlo aquí …")
-        self.lr0_label.setAlignment(Qt.AlignCenter)
-        self.lr0_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.tabs.addTab(self.lr0_label, "Autómata LR(0)")
-        # Tab 1: Tokens por línea
-        self.token_text = QTextEdit(); self.token_text.setReadOnly(True)
-        self.tabs.addTab(self.token_text, "Tokens")
-        # Tab 2: Log del parser
-        self.parser_text = QTextEdit(); self.parser_text.setReadOnly(True)
-        self.tabs.addTab(self.parser_text, "Salida del parser")
+        # Archivos de salida
+        row_out = tk.Frame(frm)
+        row_out.pack(fill="x", pady=2)
+        tk.Label(row_out, text="lexer.py:", width=14, anchor="w").pack(side="left")
+        tk.Entry(row_out, textvariable=self.lexer_out, width=20).pack(side="left")
+        tk.Label(row_out, text="sintactic.py:").pack(side="left", padx=6)
+        tk.Entry(row_out, textvariable=self.parser_out, width=20).pack(side="left")
 
+    def _build_buttons(self):
+        bar = tk.Frame(self)
+        bar.pack(fill="x", padx=10, pady=4)
+        tk.Button(bar, text="Generar analizadores", command=self.generar_analyzers).pack(side="left", padx=6)
+        tk.Button(bar, text="Analizar entrada", command=self.ejecutar_analisis).pack(side="left", padx=6)
+        tk.Button(bar, text="Salir", command=self.destroy).pack(side="right", padx=6)
 
-    def pick_generic(self, attr: str, lineedit: QLineEdit, filter_str: str):
-        path, _ = QFileDialog.getOpenFileName(self, "Seleccionar archivo", os.getcwd(), filter_str)
+    def _build_output_panel(self):
+        self.text_out = tk.Text(self, wrap="word", height=20)
+        self.text_out.pack(fill="both", expand=True, padx=10, pady=(0,8))
+        self.text_out.tag_config("error_lex", foreground="red")
+        self.text_out.tag_config("error_syn", foreground="orange")
+        self.text_out.tag_config("ok", foreground="green")
+        self.text_out.config(state="disabled")
+
+    def _build_image_panel(self):
+        self.img_label = tk.Label(self)
+        self.img_label.pack(pady=4)
+
+    @staticmethod
+    def _browse(var: tk.StringVar, filetype):
+        path = filedialog.askopenfilename(filetypes=[filetype, ("Todos", "*.*")])
         if path:
-            setattr(self, attr, path)
-            lineedit.setText(human_readable_path(path))
-        self.run_btn.setEnabled(all([self.yalex_path, self.yapar_path, self.input_path]))
+            var.set(path)
 
-    def pick_yalex(self):
-        self.pick_generic("yalex_path", self.yalex_line, "Archivos YALex (*.yalex *.yal)")
-
-    def pick_yapar(self):
-        self.pick_generic("yapar_path", self.yapar_line, "Archivos YAPar (*.yapar *.yalp)")
-
-    def pick_input(self):
-        self.pick_generic("input_path", self.input_line, "Archivos de texto (*.txt)")
+    def _run_subprocess(self, cmd: list[str]):
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            return result.returncode, result.stdout.strip(), result.stderr.strip()
+        except Exception as e:
+            return -1, "", str(e)
 
 
-    def run_analysis(self):
-        if self.worker and self.worker.isRunning():
-            QMessageBox.warning(self, "En progreso", "Ya hay un análisis en ejecución.")
+    def generar_analyzers(self):
+        yal = Path(self.yal_path.get())
+        yalp = Path(self.yalp_path.get())
+        if not yal.is_file() or not yalp.is_file():
+            messagebox.showerror("Faltan archivos", "Debes seleccionar un archivo .yal y .yalp válidos.")
             return
-        self.token_text.clear(); self.parser_text.clear(); self.lr0_label.clear()
-        self.lr0_label.setText("Procesando… Por favor espera…")
-        self.worker = AnalyzerWorker(self.yalex_path, self.yapar_path, self.input_path)
-        self.worker.finished.connect(self.on_worker_finished)
-        self.worker.start()
 
-    def on_worker_finished(self, payload):
-        if isinstance(payload, Exception):
-            QMessageBox.critical(self, "Error en el análisis", str(payload))
-            self.lr0_label.setText("Falló la generación del autómata.")
+        lexer_py = Path(self.lexer_out.get())
+        parser_py = Path(self.parser_out.get())
+
+        # ─── Generador léxico ───────────────────────────────
+        cmd_lex = [sys.executable, "generador_lexico.py", str(yal), "-o", str(lexer_py)]
+        code, out, err = self._run_subprocess(cmd_lex)
+        if code != 0:
+            messagebox.showerror("Error al generar lexer", err or out)
             return
-        result: AnalysisResult = payload
-        # --- Autómata LR(0) --------------------------------------------- #
-        if result.lr0_image_path and Path(result.lr0_image_path).exists():
-            pix = QPixmap(result.lr0_image_path)
-            if pix.isNull():
-                self.lr0_label.setText("No se pudo cargar la imagen del LR(0).")
-            else:
-                scaled = pix.scaled(QSize(800,600), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                self.lr0_label.setPixmap(scaled)
+
+        # ─── Generador sintáctico ───────────────────────────
+        cmd_syn = [sys.executable, "generador_sintactico.py", str(yalp), "-l", str(yal), "-o", str(parser_py)]
+        code, out2, err2 = self._run_subprocess(cmd_syn)
+        if code != 0:
+            messagebox.showerror("Error al generar parser", err2 or out2)
+            return
+
+        messagebox.showinfo("Éxito", "Se generaron lexer.py y sintactic.py correctamente.")
+        # Cargar la imagen del autómata
+        self._mostrar_automata()
+
+    def ejecutar_analisis(self):
+        input_file = Path(self.test_path.get())
+        lexer_py = Path(self.lexer_out.get())
+        parser_py = Path(self.parser_out.get())
+
+        # Validaciones
+        for p, lbl in ((lexer_py, "lexer.py"), (parser_py, "sintactic.py"), (input_file, "archivo de prueba")):
+            if not p.is_file():
+                messagebox.showerror("Falta archivo", f"No se encontró {lbl}: {p}")
+                return
+
+        # Importar módulos generados
+        lexer_mod = _load_module_from_path("generated_lexer", lexer_py)
+        parser_mod = _load_module_from_path("generated_parser", parser_py)
+
+        # Leer entrada y ejecutar lexer
+        data = input_file.read_text(encoding="utf-8")
+        tokens_raw = lexer_mod.run_lexer(data)  # → [(TOKEN, lexema)]
+
+        # Añadir número de línea
+        tokens_en_lineas = []  # list[(token, lexema, linea)]
+        linea = 1
+        for token, lexema in tokens_raw:
+            tokens_en_lineas.append((token, lexema, linea))
+            if lexema == "\\n":  # en caso el lexer lo retorne explícitamente
+                linea += 1
+        # Al parser le pasamos el flujo completo
+
+        aceptado, errores_syn = parser_mod.parse(tokens_en_lineas)
+
+        # ---------- Mostrar resultados ----------
+        self.text_out.config(state="normal")
+        self.text_out.delete("1.0", tk.END)
+
+        # Tokens
+        self.text_out.insert(tk.END, "TOKENS OBTENIDOS\n", "bold")
+        for tok, lex in tokens_raw:
+            start = self.text_out.index(tk.INSERT)
+            self.text_out.insert(tk.END, f"{tok:15} -> {lex}\n")
+            if tok.startswith("ERROR"):
+                end = self.text_out.index(tk.INSERT)
+                self.text_out.tag_add("error_lex", start, end)
+        self.text_out.insert(tk.END, "\n")
+
+        # Parser
+        if aceptado and not errores_syn:
+            self.text_out.insert(tk.END, "Análisis sintáctico satisfactorio\n", "ok")
         else:
-            self.lr0_label.setText("No se generó imagen del LR(0).")
-        # --- Tokens ------------------------------------------------------- #
-        token_lines = []
-        for idx, linea in enumerate(result.lexer_tokens, 1):
-            token_lines.append(f"Línea {idx}:")
-            for tok, lexema in linea:
-                token_lines.append(f"  {tok:15} → {lexema}")
-            token_lines.append("")
-        self.token_text.setPlainText("\n".join(token_lines) or "(sin tokens)")
-        # --- Parser log --------------------------------------------------- #
-        self.parser_text.setPlainText(result.parser_logs or "(sin salida)")
-        self.tabs.setCurrentIndex(0)
+            self.text_out.insert(tk.END, "Errores sintácticos:\n", "error_syn")
+            for err in errores_syn:
+                self.text_out.insert(tk.END, f"• {err}\n", "error_syn")
 
+        self.text_out.config(state="disabled")
 
+    # -------------------------------------------------------------------
+    def _mostrar_automata(self):
+        img_path = Path("AAAutmoataLR0/automata_LR0.png")
+        if img_path.is_file():
+            try:
+                img = Image.open(img_path)
+                img.thumbnail((600, 400))
+                self._tk_img = ImageTk.PhotoImage(img)
+                self.img_label.config(image=self._tk_img)
+                self.img_label.image = self._tk_img  # mantener referencia
+            except Exception as e:
+                messagebox.showwarning("Imagen", f"No se pudo cargar la imagen del autómata: {e}")
+        else:
+            self.img_label.config(image="")
 
-def main():
-    app = QApplication(sys.argv)
-    win = MainWindow()
-    win.show()
-    sys.exit(app.exec())
-
-
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    main()
+    app = AnalizadorGUI()
+    app.mainloop()
