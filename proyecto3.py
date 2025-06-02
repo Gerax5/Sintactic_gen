@@ -68,7 +68,7 @@ class AnalizadorGUI(tk.Tk):
         self.text_out = tk.Text(self, wrap="word", height=20)
         self.text_out.pack(fill="both", expand=True, padx=10, pady=(0,8))
         self.text_out.tag_config("error_lex", foreground="red")
-        self.text_out.tag_config("error_syn", foreground="orange")
+        self.text_out.tag_config("error_syn", foreground="red")
         self.text_out.tag_config("ok", foreground="green")
         self.text_out.config(state="disabled")
 

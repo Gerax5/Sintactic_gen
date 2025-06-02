@@ -1,6 +1,8 @@
 import sys
 import argparse
 import os
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 from src.helpers.Lex import Lexer
 from src.helpers.Utils import pre_process_regex
@@ -122,7 +124,7 @@ if __name__ == "__main__":
 def main():
     parser = argparse.ArgumentParser(description="Generador de Analizadores Léxicos")
     parser.add_argument("yalex_file", help="Archivo de especificación YALex")
-    parser.add_argument("-o", "--output", default="thelexer.py",
+    parser.add_argument("-o", "--output", default="lexer.py",
                         help="Nombre del archivo de salida para el analizador léxico")
     args = parser.parse_args()
 

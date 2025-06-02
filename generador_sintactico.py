@@ -3,8 +3,12 @@ from __future__ import annotations
 import argparse
 import sys
 import textwrap
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 from pathlib import Path
 from typing import Dict, List, Tuple
+
 
 from src.helpers.Utils import (
     leerYapar,
