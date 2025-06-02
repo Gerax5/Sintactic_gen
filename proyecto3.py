@@ -142,8 +142,11 @@ class AnalizadorGUI(tk.Tk):
         linea = 1
         errores_syn = []
         aceptado = True
+        skip = ["COMENTARIO", "COMENTARIO_MULTILINEA", ""]
         for lines in tokens_raw:
             for token, lexema in lines:
+                if token in skip:
+                    continue
                 tokens_en_lineas.append((token, lexema, linea))
             
             aceptadoDefinitivo, errores = parser_mod.parse(tokens_en_lineas)

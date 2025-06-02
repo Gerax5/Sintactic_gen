@@ -19,7 +19,7 @@ def leer_yalex(path):
         lines = f.readlines()
         lex.indentify(lines)
 
-leer_yalex("data/inputs/tyal/easyYalex.yal")
+leer_yalex("data/inputs/tyal/hardYalex.yal")
 
 lex.parseLets()
 
