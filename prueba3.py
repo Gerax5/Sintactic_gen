@@ -122,7 +122,7 @@ def run_lexer(input_string):
     return tokens_encontrados
 
 
-with open("data/inputs/entradafacil.txt", "r", encoding="utf-8") as f:
+with open("data/inputs/test/t3.txt", "r", encoding="utf-8") as f:
     data = f.read()
 resultado = run_lexer(data)
 
@@ -146,7 +146,7 @@ print(tokensYalex)
 
 
 # archivo = "./testfile2.yalp"
-archivo = "./data/inputs/tyapar/easy.yalp"
+archivo = "./data/inputs/tyapar/hard.yalp"
 tokens, producciones, initial_symbol = leerYapar(archivo)
 
 # print(tokens)

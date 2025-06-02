@@ -149,10 +149,11 @@ class AnalizadorGUI(tk.Tk):
                     continue
                 tokens_en_lineas.append((token, lexema, linea))
             
-            aceptadoDefinitivo, errores = parser_mod.parse(tokens_en_lineas)
-            if errores:
-                errores_syn.extend(errores)        
-                aceptado = False
+            if tokens_en_lineas:
+                aceptadoDefinitivo, errores = parser_mod.parse(tokens_en_lineas)
+                if errores:
+                    errores_syn.extend(errores)        
+                    aceptado = False
 
             tokens_en_lineas = []
 
