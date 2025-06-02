@@ -4,7 +4,7 @@ import sys
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
-from PIL import Image, ImageTk  # Pillow debe estar instalado
+from PIL import Image, ImageTk
 
 
 def _load_module_from_path(module_name: str, path: Path):
@@ -12,7 +12,7 @@ def _load_module_from_path(module_name: str, path: Path):
     if spec is None or spec.loader is None:
         raise ImportError(f"No se pudo cargar el módulo {module_name} desde {path}")
     mod = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = mod  # evita duplicados si se recarga
+    sys.modules[module_name] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -135,10 +135,32 @@ class AnalizadorGUI(tk.Tk):
 
         # Leer entrada y ejecutar lexer
         data = input_file.read_text(encoding="utf-8")
-        tokens_raw = lexer_mod.run_lexer(data)  # → [(TOKEN, lexema)]
+        tokens_raw = lexer_mod.run_lexer(data)
+        # Verificar errores léxicos antes de continuar
+        hay_error_lexico = any(
+            token.startswith("ERROR") for line in tokens_raw for token, _ in line
+        )
+        if hay_error_lexico:
+            self.text_out.config(state="normal")
+            self.text_out.delete("1.0", tk.END)
+
+            self.text_out.insert(tk.END, "TOKENS OBTENIDOS\n", "bold")
+            for line in tokens_raw:
+                for tok, lex in line:
+                    start = self.text_out.index(tk.INSERT)
+                    self.text_out.insert(tk.END, f"{tok:15} -> {lex}\n")
+                    if tok.startswith("ERROR"):
+                        end = self.text_out.index(tk.INSERT)
+                        self.text_out.tag_add("error_lex", start, end)
+
+            self.text_out.insert(tk.END, "\n")
+            self.text_out.insert(tk.END, "Se encontraron errores léxicos. No se continuará con el análisis sintáctico.\n", "error_lex")
+            self.text_out.config(state="disabled")
+            return
+
 
         # Añadir número de línea
-        tokens_en_lineas = []  # list[(token, lexema, linea)]
+        tokens_en_lineas = []
         linea = 1
         errores_syn = []
         aceptado = True
