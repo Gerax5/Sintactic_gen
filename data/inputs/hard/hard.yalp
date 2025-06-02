@@ -1,0 +1,81 @@
+/* Parser para un subconjunto de Python utilizando los tokens actualizados de YALex */
+
+%token IF FOR WHILE DEF RETURN IN PRINT
+%token IDENTIFICADOR NUMERO_CON_DECIMAL DIGITO STRING
+%token SUMA RESTA MULTIPLICACION DIVISION
+%token ASIGNACION COMPARACION DIFERENTE MENOR_QUE MAYOR_QUE MENOR_IGUAL_QUE MAYOR_IGUAL_QUE
+%token PARENTESIS_IZQUIERDO PARENTESIS_DERECHO
+%token DOS_PUNTOS COMA
+%token COMENTARIO
+%token COMENTARIO_MULTILINEA
+
+
+%%
+
+programa:
+    programa sentencia
+  | sentencia
+;
+
+sentencia:
+    asignacion
+  | estructura_control
+  | llamada_print
+  | retorno
+;
+
+asignacion:
+    IDENTIFICADOR ASIGNACION expresion
+;
+
+estructura_control:
+  | DEF IDENTIFICADOR PARENTESIS_IZQUIERDO parametros PARENTESIS_DERECHO DOS_PUNTOS
+  | FOR IDENTIFICADOR IN expresion DOS_PUNTOS
+  | IF expresion DOS_PUNTOS
+  | WHILE expresion DOS_PUNTOS
+;
+
+llamada_print:
+    PRINT PARENTESIS_IZQUIERDO argumentos_print PARENTESIS_DERECHO
+;
+
+retorno:
+    RETURN expresion
+;
+
+
+parametros:
+    IDENTIFICADOR
+  | IDENTIFICADOR COMA parametros
+;
+
+expresion:
+    expresion SUMA termino
+  | expresion RESTA termino
+  | termino
+;
+
+termino:
+    termino MULTIPLICACION factor
+  | termino DIVISION factor
+  | factor
+;
+
+argumentos:
+    expresion
+  | expresion COMA argumentos
+;
+
+factor:
+    PARENTESIS_IZQUIERDO expresion PARENTESIS_DERECHO
+  | IDENTIFICADOR
+  | NUMERO_CON_DECIMAL
+  | DIGITO
+  | STRING
+  | IDENTIFICADOR PARENTESIS_IZQUIERDO argumentos PARENTESIS_DERECHO
+;
+
+argumentos_print:
+    expresion
+  | expresion COMA argumentos_print
+;
