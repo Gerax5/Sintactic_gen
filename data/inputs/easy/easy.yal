@@ -1,0 +1,13 @@
+let delim  = [' ' '\t' '\n']
+let ws     = delim+
+
+let letter = ['a'-'z''A'-'Z']
+let digit  = ['0'-'9']
+
+rule tokens =
+    ws                     { }                (* ignora espacios en blanco *)
+  | letter(letter|digit)*  { IDENTIFICADOR }
+  | digit+                 { NUMBER }
+  | '+'                    { PLUS }
+  | '-'                    { MINUS }
+  | '='                    { ASSIGN }
