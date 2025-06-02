@@ -25,6 +25,7 @@ def run_lexer(input_string):
         raise Exception("No se encontró un estado inicial en el DFA")
 
     tokens_encontrados = []
+    tokens_linea_actual = []
     line_number = 1
     i = 0
     longitud = len(input_string)
@@ -41,6 +42,9 @@ def run_lexer(input_string):
         while i < longitud and input_string[i].isspace():
             if input_string[i] == '\n':
                 line_number += 1
+                if tokens_linea_actual:
+                    tokens_encontrados.append(tokens_linea_actual)
+                    tokens_linea_actual = []
             i += 1
         
         if i >= longitud:
@@ -91,12 +95,15 @@ def run_lexer(input_string):
                 break
 
         if accion_aceptada and accion_aceptada.strip():
-            tokens_encontrados.append((accion_aceptada, lexema_aceptado))
+            tokens_linea_actual.append((accion_aceptada, lexema_aceptado))
             i = posicion_aceptada
         else:
             error_char = input_string[i]
-            tokens_encontrados.append((f"ERROR(line {line_number})", error_char))
+            tokens_linea_actual.append((f"ERROR(line {line_number})", error_char))
             i += 1
+                  
+    if tokens_linea_actual:
+        tokens_encontrados.append(tokens_linea_actual)
 
     return tokens_encontrados
 

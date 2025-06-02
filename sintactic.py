@@ -5,7 +5,7 @@ import sys
 from collections import deque
 
 # ACTION: (estado, token) -> acción ('sN' / 'rM' / 'acc')
-ACTION = {0: {'IDENTIFICADOR': 's1'}, 1: {'ASSIGN': 's3'}, 3: {'IDENTIFICADOR': 's4', 'NUMBER': 's5'}, 6: {'MINUS': 's8', 'PLUS': 's9', '$': 'r0'}, 8: {'IDENTIFICADOR': 's4', 'NUMBER': 's5'}, 9: {'IDENTIFICADOR': 's4', 'NUMBER': 's5'}, 2: {'$': 'acc'}, 4: {'PLUS': 'r5', 'MINUS': 'r5', '$': 'r5'}, 5: {'PLUS': 'r4', 'MINUS': 'r4', '$': 'r4'}, 7: {'PLUS': 'r3', '$': 'r3', 'MINUS': 'r3'}, 10: {'PLUS': 'r2', '$': 'r2', 'MINUS': 'r2'}, 11: {'PLUS': 'r1', '$': 'r1', 'MINUS': 'r1'}}
+ACTION = {0: {'IDENTIFICADOR': 's1'}, 1: {'ASSIGN': 's3'}, 3: {'IDENTIFICADOR': 's4', 'NUMBER': 's5'}, 6: {'MINUS': 's8', 'PLUS': 's9', '$': 'r0'}, 8: {'IDENTIFICADOR': 's4', 'NUMBER': 's5'}, 9: {'IDENTIFICADOR': 's4', 'NUMBER': 's5'}, 2: {'$': 'acc'}, 4: {'$': 'r5', 'MINUS': 'r5', 'PLUS': 'r5'}, 5: {'$': 'r4', 'MINUS': 'r4', 'PLUS': 'r4'}, 7: {'$': 'r3', 'MINUS': 'r3', 'PLUS': 'r3'}, 10: {'$': 'r2', 'MINUS': 'r2', 'PLUS': 'r2'}, 11: {'$': 'r1', 'MINUS': 'r1', 'PLUS': 'r1'}}
 
 # GOTO: (estado, NoTerminal) -> estado
 GOTO = {0: {'operacion': 2}, 3: {'expression': 6, 'term': 7}, 8: {'term': 10}, 9: {'term': 11}}

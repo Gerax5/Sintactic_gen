@@ -77,29 +77,32 @@ def generar_parser(
                 for lhs, reglas in PRODUCTIONS.items():
                     for regla in reglas:
                         producciones_numeradas.append((lhs, regla))
+
                 while True:
                     state = stack[-1]
                     tok, lex, line = tokens[i]
-                    act = ACTION.get((state, tok))
+                    act = ACTION.get(int(state), {}).get(tok)
                     if act is None:
-                        errors.append(f"Error de sintaxis en la línea {line if line!=-1 else '?'}: se encontró '{tok}'.")
+                        errors.append(f"Error de sintaxis en la línea {line if line!=-1 else '?'}: token inesperado '{tok}' (lexema: '{lex}').")
                         return False, errors
                     if act == 'acc':
                         return True, errors
                     if act.startswith('s'):
-                        stack.extend([tok, int(act[1:])])
+                        # stack.extend([tok, int(act[1:])])
+                        stack.append(act[1:])  # Agregar solo el estado, no el token
                         i += 1
                         continue
                     if act.startswith('r'):
                         prod = int(act[1:])
                         head, blen = producciones_numeradas[prod]
-                        for _ in range(blen*2):
+                        for _ in blen:
                             stack.pop()
-                        goto_state = GOTO.get((stack[-1], head))
+                        newState = int(stack[-1])
+                        goto_state = GOTO[newState][head]
                         if goto_state is None:
-                            errors.append(f"Sin transición GOTO para {head} desde {stack[-1]}")
+                            errors.append(f"Error interno del analizador: no se encontró una transición válida (GOTO) para el símbolo {head} desde {stack[-1]}")
                             return False, errors
-                        stack.extend([head, goto_state])
+                        stack.append(goto_state)
                         continue
                     errors.append(f"Acción desconocida: {act}")
                     return False, errors

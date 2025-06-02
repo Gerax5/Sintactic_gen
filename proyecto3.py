@@ -140,13 +140,31 @@ class AnalizadorGUI(tk.Tk):
         # Añadir número de línea
         tokens_en_lineas = []  # list[(token, lexema, linea)]
         linea = 1
-        for token, lexema in tokens_raw:
-            tokens_en_lineas.append((token, lexema, linea))
-            if lexema == "\\n":  # en caso el lexer lo retorne explícitamente
-                linea += 1
+        errores_syn = []
+        aceptado = True
+        for lines in tokens_raw:
+            for token, lexema in lines:
+                tokens_en_lineas.append((token, lexema, linea))
+            
+            aceptadoDefinitivo, errores = parser_mod.parse(tokens_en_lineas)
+            if errores:
+                errores_syn.extend(errores)        
+                aceptado = False
+
+            tokens_en_lineas = []
+
+            if not aceptadoDefinitivo:
+                aceptado = False
+            linea += 1 
+        # for token, lexema in tokens_raw:
+        #     tokens_en_lineas.append((token, lexema, linea))
+        #     if lexema == "\\n":  # en caso el lexer lo retorne explícitamente
+        #         linea += 1
         # Al parser le pasamos el flujo completo
 
-        aceptado, errores_syn = parser_mod.parse(tokens_en_lineas)
+        print(tokens_en_lineas)
+        
+        
 
         # ---------- Mostrar resultados ----------
         self.text_out.config(state="normal")
@@ -154,12 +172,20 @@ class AnalizadorGUI(tk.Tk):
 
         # Tokens
         self.text_out.insert(tk.END, "TOKENS OBTENIDOS\n", "bold")
-        for tok, lex in tokens_raw:
-            start = self.text_out.index(tk.INSERT)
-            self.text_out.insert(tk.END, f"{tok:15} -> {lex}\n")
-            if tok.startswith("ERROR"):
-                end = self.text_out.index(tk.INSERT)
-                self.text_out.tag_add("error_lex", start, end)
+        for lines in tokens_raw:
+            for tok, lex in lines:
+                start = self.text_out.index(tk.INSERT)
+                self.text_out.insert(tk.END, f"{tok:15} -> {lex}\n")
+                if tok.startswith("ERROR"):
+                    end = self.text_out.index(tk.INSERT)
+                    self.text_out.tag_add("error_lex", start, end)
+
+        # for tok, lex in tokens_raw:
+        #     start = self.text_out.index(tk.INSERT)
+        #     self.text_out.insert(tk.END, f"{tok:15} -> {lex}\n")
+        #     if tok.startswith("ERROR"):
+        #         end = self.text_out.index(tk.INSERT)
+        #         self.text_out.tag_add("error_lex", start, end)
         self.text_out.insert(tk.END, "\n")
 
         # Parser
@@ -181,7 +207,7 @@ class AnalizadorGUI(tk.Tk):
                 img.thumbnail((600, 400))
                 self._tk_img = ImageTk.PhotoImage(img)
                 self.img_label.config(image=self._tk_img)
-                self.img_label.image = self._tk_img  # mantener referencia
+                self.img_label.image = self._tk_img
             except Exception as e:
                 messagebox.showwarning("Imagen", f"No se pudo cargar la imagen del autómata: {e}")
         else:
