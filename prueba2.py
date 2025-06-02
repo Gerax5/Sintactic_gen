@@ -37,96 +37,85 @@ def run_lexer(input_string):
         raise Exception("No se encontró un estado inicial en el DFA")
 
     tokens_encontrados = []
-    current_state = initial_state
-
+    tokens_linea_actual = []
     line_number = 1
     i = 0
-    lexema_actual = ""
     longitud = len(input_string)
 
     replace_characters = {
         "\n": "\\n",
         "\t": "\\t",
-        "\r": "\\r"
+        "\r": "\\r",
+        " ": " "
     }
     special_characters = list(replace_characters.keys())
 
     while i < longitud:
-        c = input_string[i]
-        lexema_actual += c
-
-        if c == '\n':
-            line_number += 1
-
-        if c not in aut.ddfa.alphabet:
-            if c in special_characters:
-                scape = replace_characters[c]
-            else:
-                scape = f"\\{c}"
-            if scape in aut.ddfa.alphabet:
-                c = scape
-            else:
-                tokens_encontrados.append((f"ERROR(line {line_number})", lexema_actual))    
-                lexema_actual = ""
-                current_state = initial_state
-                i += 1
-                continue
-
-        trans_actual = aut.ddfa.transitions[current_state]["transitions"]
-        if c in trans_actual:
-            next_state = trans_actual[c]
-            current_state = next_state
+        while i < longitud and input_string[i].isspace():
+            if input_string[i] == '\n':
+                line_number += 1
+                if tokens_linea_actual:
+                    tokens_encontrados.append(tokens_linea_actual)
+                    tokens_linea_actual = []
             i += 1
-        else:
-            if aut.ddfa.transitions[current_state]["accept"]:
-                accion_info = aut.ddfa.transitions[current_state].get("action", None)
-                accion = ""
+        
+        if i >= longitud:
+            break
 
-                if isinstance(accion_info, dict):
-                    accion = accion_info.get("action", "")
-                elif isinstance(accion_info, list):
-                    accion_ordenada = sorted(
-                        [a for a in accion_info if isinstance(a, dict) and "priority" in a],
-                        key=lambda x: x["priority"]
-                    )
-                    if accion_ordenada:
-                        accion = accion_ordenada[0]["action"]
-                elif isinstance(accion_info, str):
-                    accion = accion_info
 
-                lexema_valido = lexema_actual[:-1]
+        current_state = initial_state
+        lexema_actual = ""
+        accion_aceptada = None
+        lexema_aceptado = ""
+        posicion_aceptada = -1
 
-                if accion.strip():
-                    tokens_encontrados.append((accion, lexema_valido))
+        j = i
+        while j < longitud:
+            c = input_string[j]
+            lexema_actual += c
 
-                lexema_actual = ""
-                current_state = initial_state
+            
+
+            if c not in aut.ddfa.alphabet:
+                if c in special_characters:
+                    scape = replace_characters[c]
+                else:
+                    scape = f"\\{c}"
+                    
+                if scape in aut.ddfa.alphabet:
+                    c = scape
+                else:
+                    break
+
+            trans_actual = aut.ddfa.transitions[current_state]["transitions"]
+            if c in trans_actual:
+                if c == '\\n':
+                    line_number += 1
+                next_state = trans_actual[c]
+                current_state = next_state
+
+                if aut.ddfa.transitions[current_state]["accept"]:
+                    accion_info = aut.ddfa.transitions[current_state].get("action", "")
+                    if isinstance(accion_info, dict):
+                        accion_aceptada = accion_info.get("action", "")
+                    elif isinstance(accion_info, str):
+                        accion_aceptada = accion_info
+                    lexema_aceptado = lexema_actual
+                    posicion_aceptada = j + 1
+                j += 1
             else:
-                tokens_encontrados.append((f"ERROR(line {line_number})", lexema_actual))
-                lexema_actual = ""
-                current_state = initial_state
-                i += 1
+                break
 
-    if aut.ddfa.transitions[current_state]["accept"]:
-        accion_info = aut.ddfa.transitions[current_state].get("action", None)
-        accion = ""
+        if accion_aceptada and accion_aceptada.strip():
+            tokens_linea_actual.append((accion_aceptada, lexema_aceptado))
+            # tokens_encontrados.append((accion_aceptada, lexema_aceptado))
+            i = posicion_aceptada
+        else:
+            error_char = input_string[i]
+            tokens_linea_actual.append((f"ERROR(line {line_number})", error_char))
+            # tokens_encontrados.append((f"ERROR(line {line_number})", error_char))
+            i += 1
 
-        if isinstance(accion_info, dict):
-            accion = accion_info.get("action", "")
-        elif isinstance(accion_info, list):
-            accion_ordenada = sorted(
-                [a for a in accion_info if isinstance(a, dict) and "priority" in a],
-                key=lambda x: x["priority"]
-            )
-            if accion_ordenada:
-                accion = accion_ordenada[0]["action"]
-        elif isinstance(accion_info, str):
-            accion = accion_info
-
-        if accion.strip():
-            tokens_encontrados.append((accion, lexema_actual))
-    elif lexema_actual != "":
-        tokens_encontrados.append((f"ERROR(line {line_number})", lexema_actual))
 
     return tokens_encontrados
 
@@ -134,10 +123,14 @@ def run_lexer(input_string):
 with open("data/inputs/entradafacil.txt", "r", encoding="utf-8") as f:
     data = f.read()
 resultado = run_lexer(data)
-for token, lexema in resultado:
-    print(f"{token} -> {lexema}")
+linea = 1
+for lines in resultado:
+    print(f"Linea {linea}:")
+    for token, lexema in lines:
+        print(f"{token} -> {lexema}")
+    linea += 1
 
-tokensYalex = [t[0] for t in resultado]
+tokensYalex = [t[0] for linea in resultado for t in linea] #[t[0] for t in resultado]
 
 print(tokensYalex)
 
@@ -189,14 +182,19 @@ slr = SLR(producciones, no_terminales, automata.states,
 
 slr.build_slr_tables()
 
-if automata.estado_aceptacion:
-        if '$' not in terminales: 
-            terminales.append('$')
+# if automata.estado_aceptacion:
+#         if '$' not in terminales: 
+#             terminales.append('$')
 
 slr.imprimirTablas()
 
 
-slr.parse(tokensYalex)
+for lines in resultado:
+    toParse = [t[0] for t in lines]
+    
+    print(toParse)
+    slr.parse(toParse)
+    print("\n\n")
 
 
 
