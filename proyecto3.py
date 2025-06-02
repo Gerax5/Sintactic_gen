@@ -146,7 +146,9 @@ class AnalizadorGUI(tk.Tk):
                 linea += 1
         # Al parser le pasamos el flujo completo
 
+        print(tokens_en_lineas)
         aceptado, errores_syn = parser_mod.parse(tokens_en_lineas)
+        
 
         # ---------- Mostrar resultados ----------
         self.text_out.config(state="normal")
@@ -181,7 +183,7 @@ class AnalizadorGUI(tk.Tk):
                 img.thumbnail((600, 400))
                 self._tk_img = ImageTk.PhotoImage(img)
                 self.img_label.config(image=self._tk_img)
-                self.img_label.image = self._tk_img  # mantener referencia
+                self.img_label.image = self._tk_img
             except Exception as e:
                 messagebox.showwarning("Imagen", f"No se pudo cargar la imagen del autómata: {e}")
         else:

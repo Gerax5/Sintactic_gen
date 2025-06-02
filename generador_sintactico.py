@@ -1,151 +1,133 @@
 from __future__ import annotations
-
 import argparse
-import sys
-import textwrap
+import json
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-from src.helpers.Utils import (
-    leerYapar,
-    verificar_tokens,
-    verificar_tokens_usados_no_declarados,
-)
+from src.helpers.Utils import leerYapar, verificar_tokens, verificar_tokens_usados_no_declarados
 from src.helpers.first import First
 from src.helpers.follow import Follow
 from src.AutomataLR0.automata import AutomataLR0
 from src.SLRParsing.SLR import SLR
 
+def _compact_key(state: int, symbol: str) -> str:
+    return f"{state}:{symbol}"
 
-def _compact(state: int, sym: str) -> str:
-    return f"{state}:{sym}"
-
-def _expand(key: str) -> Tuple[int, str]:
+def _expand_key(key: str) -> Tuple[int, str]:
     st, sym = key.split(":", 1)
     return int(st), sym
 
-def _flatten_tables(action_nested: dict, goto_nested: dict):
-    action, goto = {}, {}
-    for st, trans in action_nested.items():
-        for sym, act in trans.items():
-            action[(st, sym)] = act
-    for st, trans in goto_nested.items():
-        for sym, dst in trans.items():
-            goto[(st, sym)] = dst
-    return action, goto
+def _serializar_tablas(action: dict, goto: dict):
+    if all(isinstance(k, int) for k in action.keys()):
+        action = {(s, a): v for s, d in action.items() for a, v in d.items()}
+        goto = {(s, nt): v for s, d in goto.items() for nt, v in d.items()}
 
-# ---------------------------------------------------------------------------
-# Generador de sintactic.py
-# ---------------------------------------------------------------------------
+    action_ser = {_compact_key(s, a): act for (s, a), act in action.items()}
+    goto_ser   = {_compact_key(s, nt): dst for (s, nt), dst in goto.items()}
+    return action_ser, goto_ser
 
-def generar_parser(
-    output_path: Path,
-    action_table: dict,
-    goto_table: dict,
-    productions: List[Tuple[str, List[str]]],
-    start_symbol: str,
-):
-    # 1) aplanar tablas
-    action_flat, goto_flat = _flatten_tables(action_table, goto_table)
+def _simplify_productions(prod_list):
+    simplified = []
+    for prod in prod_list:
+        if isinstance(prod, (tuple, list)) and len(prod) == 2:
+            head, body = prod
+        elif hasattr(prod, "head") and hasattr(prod, "body"):
+            head, body = prod.head, prod.body
+        elif isinstance(prod, str):
+            if "->" in prod:
+                head, rhs = prod.split("->", 1)
+                head = head.strip()
+                body = rhs.strip().split()
+            else:
+                head, body = prod.strip(), []
+        else:
+            raise TypeError(f"Formato de producción no reconocido: {prod}")
+        if not isinstance(body, (list, tuple)):
+            body = str(body).split()
+        simplified.append((head, len(body)))
+    return simplified
 
-    # 2) simplificar producciones → (head, |body|)
-    prods_simple = [(p[0], len(p[1])) for p in productions]
+def generar_parser(out: Path, action_tbl: dict, goto_tbl: dict, prod_list, start_symbol: str):
+    ACTION_SER, GOTO_SER = _serializar_tablas(action_tbl, goto_tbl)
+    prods_simplified     = _simplify_productions(prod_list)
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write("""# sintactic.py – Analizador SLR(1) generado automáticamente\n""")
-        f.write("# *Archivo autónomo; no requiere las librerías del generador.*\n\n")
-        f.write("import sys\nfrom collections import deque\n\n")
+    usados = [int(v[1:]) for v in ACTION_SER.values() if v.startswith("r")]
+    if usados and max(usados) >= len(prods_simplified):
+        raise ValueError(f"Se requieren al menos {max(usados)+1} producciones, pero solo hay {len(prods_simplified)}")
 
-        f.write("# ACTION: (estado, token) -> acción ('sN' / 'rM' / 'acc')\n")
-        f.write(f"ACTION = {repr(action_flat)}\n\n")
-        f.write("# GOTO: (estado, NoTerminal) -> estado\n")
-        f.write(f"GOTO = {repr(goto_flat)}\n\n")
-
-        f.write(f"PRODUCTIONS = {repr(prods_simple)}\n")
+    with out.open("w", encoding="utf-8") as f:
+        f.write("# sintactic.py – Analizador SLR(1) generado automáticamente\n")
+        f.write("import sys\n\n")
+        f.write(f"ACTION = {repr(ACTION_SER)}\n\n")
+        f.write(f"GOTO   = {repr(GOTO_SER)}\n\n")
+        f.write(f"PRODUCTIONS = {repr(prods_simplified)}\n")
         f.write(f"START_SYMBOL = {repr(start_symbol)}\n\n")
+        f.write(
+                '''
+def parse(tokens):
+    tokens = list(tokens) + [('$', '$', -1)]
+    stack  = [0]
+    idx    = 0
+    errs   = []
+    while True:
+        state = stack[-1]
+        tok, lex, line = tokens[idx]
+        act = ACTION.get(f\"{state}:{tok}\")
+        if act is None:
+            errs.append(f\"Error de sintaxis en línea {line}: token '{tok}' inesperado\")
+            return False, errs
+        if act == 'acc':
+            return True, errs
+        if act.startswith('s'):
+            stack.extend([tok, int(act[1:])])
+            idx += 1
+            continue
+        if act.startswith('r'):
+            n = int(act[1:])
+            head, blen = PRODUCTIONS[n]
+            for _ in range(blen * 2):
+                stack.pop()
+            goto_state = GOTO.get(f\"{stack[-1]}:{head}\")
+            if goto_state is None:
+                errs.append(f\"Sin GOTO para {head} desde estado {stack[-1]}\")
+                return False, errs
+            stack.extend([head, goto_state])
+            continue
+''')
 
-        # Algoritmo de parsing
-        f.write(textwrap.dedent(
-            '''
-            def parse(token_stream):
-                tokens = list(token_stream) + [('$', '$', -1)]
-                stack = [0]
-                i = 0
-                errors = []
-                while True:
-                    state = stack[-1]
-                    tok, lex, line = tokens[i]
-                    act = ACTION.get((state, tok))
-                    if act is None:
-                        errors.append(f"Error de sintaxis en la línea {line if line!=-1 else '?'}: se encontró '{tok}'.")
-                        return False, errors
-                    if act == 'acc':
-                        return True, errors
-                    if act.startswith('s'):
-                        stack.extend([tok, int(act[1:])])
-                        i += 1
-                        continue
-                    if act.startswith('r'):
-                        prod = int(act[1:])
-                        head, blen = PRODUCTIONS[prod]
-                        for _ in range(blen*2):
-                            stack.pop()
-                        goto_state = GOTO.get((stack[-1], head))
-                        if goto_state is None:
-                            errors.append(f"Sin transición GOTO para {head} desde {stack[-1]}")
-                            return False, errors
-                        stack.extend([head, goto_state])
-                        continue
-                    errors.append(f"Acción desconocida: {act}")
-                    return False, errors
-            '''
-        ))
-    print(f"Analizador sintáctico generado en {output_path}")
+    print("sintactic.py generado con éxito en:", out)
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+def _ordenar_producciones(diccionario: dict[str, list[list[str]]]) -> list[tuple[str, list[str]]]:
+    return [(head, cuerpo) for head, cuerpos in diccionario.items() for cuerpo in cuerpos]
+
 
 def main():
-    ap = argparse.ArgumentParser(description='Generador SLR(1)')
-    ap.add_argument('yapar_file')
-    ap.add_argument('-l', '--yal_file')
-    ap.add_argument('-o', '--output', default='sintactic.py')
-    args = ap.parse_args()
+    p = argparse.ArgumentParser()
+    p.add_argument("yapar_file")
+    p.add_argument("-l", "--yal_file")
+    p.add_argument("-o", "--output", default="sintactic.py")
+    ns = p.parse_args()
 
-    yapar = Path(args.yapar_file)
-    if not yapar.is_file():
-        print('❌ No se encontró', yapar); sys.exit(1)
+    yapar_path = Path(ns.yapar_file)
+    tokens_yap, prod_dict, start_sym = leerYapar(str(yapar_path))
 
-    # Parsear gramática
-    tokens_decl, prod_dict, start = leerYapar(str(yapar))
+    # FIRST/FOLLOW
+    first  = First(prod_dict)
+    follow = Follow(prod_dict, first.first, start_sym)
 
-    if args.yal_file:
-        from src.helpers.Lex import Lexer
-        from src.helpers.Utils import pre_process_regex
-        from src.Automata.Automata import Create_automata
-        lex = Lexer(); lex.indentify(Path(args.yal_file).read_text(encoding='utf-8').splitlines())
-        lex.parseLets(); regex = pre_process_regex(lex.lets)
-        Create_automata().convertRegex(regex, lex.tokens)  # sólo para poblar tokens_definidos
-        missing = verificar_tokens(lex.tokens_definidos, set(tokens_decl))
-        if missing:
-            print('Tokens del parser no existen en lexer:', missing)
+    # Automata + tablas
+    auto = AutomataLR0(prod_dict, start_sym)
+    auto.build()
 
-    if (u := verificar_tokens_usados_no_declarados(tokens_decl, prod_dict)):
-        print('Tokens usados sin declarar en YAPAR:', u)
-
-    # FIRST/FOLLOW + LR(0) + tablas SLR
-    first = First(prod_dict)
-    follow = Follow(prod_dict, first.first, start)
-    aut = AutomataLR0(prod_dict, start); aut.build();
-    try: aut.graph()
-    except: pass
-    slr = SLR(prod_dict, list(prod_dict.keys()), aut.states, aut.transiciones,
-              aut.estados_id, aut.estado_aceptacion, aut.startSymbolPrime,
-              follow.follow_set, sorted(set(tokens_decl)))
+    slr = SLR(prod_dict, list(prod_dict), auto.states, auto.transiciones,
+              auto.estados_id, auto.estado_aceptacion, auto.startSymbolPrime,
+              follow.follow_set, sorted(set(tokens_yap)))
     slr.build_slr_tables()
 
-    generar_parser(Path(args.output), slr.action_table, slr.goto_table, slr.productions, start)
+    productions_ordered = _ordenar_producciones(prod_dict)
 
-if __name__ == '__main__':
+    generar_parser(Path(ns.output), slr.action_table, slr.goto_table, productions_ordered, start_sym)
+
+
+if __name__ == "__main__":
     main()
