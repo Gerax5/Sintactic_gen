@@ -16,13 +16,15 @@ let id = letter(letter|digit)*
 let number = '-'?digits
 
 (* Cadenas entre comillas dobles, sin escapes *)
-let string = '"'(letter|digit|' ')*'"'
+let string = '"'(letter|digit|' '|\')*'"'
 
 (* Comentario de una línea tipo Python *)
-let comentario = '#'(letter|digit|' ')*
+let comentario = '#'(letter|digit|' '|\')*
 
 (* Palabras clave *)
 let if_kw = if
+
+let print_kw = print
 
 (* Operadores *)
 let igual = '='

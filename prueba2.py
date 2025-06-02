@@ -19,7 +19,7 @@ def leer_yalex(path):
         lines = f.readlines()
         lex.indentify(lines)
 
-leer_yalex("data/inputs/tyal/easyYalex.yal")
+leer_yalex("data/inputs/tyal/mediumYalex.yal")
 
 lex.parseLets()
 
@@ -116,13 +116,17 @@ def run_lexer(input_string):
             # tokens_encontrados.append((f"ERROR(line {line_number})", error_char))
             i += 1
 
+    if tokens_linea_actual:
+        tokens_encontrados.append(tokens_linea_actual)
 
     return tokens_encontrados
 
 
-with open("data/inputs/entradafacil.txt", "r", encoding="utf-8") as f:
+with open("data/inputs/test/entrada2.txt", "r", encoding="utf-8") as f:
     data = f.read()
 resultado = run_lexer(data)
+
+print("==== RESULTADO DEL LEXER ====")
 linea = 1
 for lines in resultado:
     print(f"Linea {linea}:")
@@ -130,17 +134,24 @@ for lines in resultado:
         print(f"{token} -> {lexema}")
     linea += 1
 
+# for token, lexema in resultado:
+#     print(f"{token} -> {lexema}")
+
+print("\n==== SINTACTICO ====")
+
 tokensYalex = [t[0] for linea in resultado for t in linea] #[t[0] for t in resultado]
+# tokensYalex = [t[0] for t in resultado]
 
 print(tokensYalex)
 
 
-archivo = "./testfile2.yalp"
+# archivo = "./testfile2.yalp"
+archivo = "./data/inputs/tyapar/medium.yalp"
 tokens, producciones, initial_symbol = leerYapar(archivo)
 
-print(tokens)
-print(producciones)
-print(lex.tokens_definidos)
+# print(tokens)
+# print(producciones)
+# print(lex.tokens_definidos)
 
 print(verificar_tokens_usados_no_declarados(tokens, producciones)) # Verifica en el yapar tokens que no han sido declarados y fueron usados
 
@@ -186,16 +197,21 @@ slr.build_slr_tables()
 #         if '$' not in terminales: 
 #             terminales.append('$')
 
-slr.imprimirTablas()
+# slr.imprimirTablas()
 
-
+print("\n\n")
+skip = ["COMENTARIO", "COMENTARIO_MULTILINEA", ""]
 for lines in resultado:
-    toParse = [t[0] for t in lines]
-    
-    print(toParse)
-    slr.parse(toParse)
+    print(lines)
+    toParse = [t[0] for t in lines if t[0] not in skip]
+
+    if toParse:
+        print(toParse)
+        slr.parse(toParse)
     print("\n\n")
 
+# print(tokensYalex)
+# slr.parse(tokensYalex)
 
 
 

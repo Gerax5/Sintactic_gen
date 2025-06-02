@@ -4,7 +4,7 @@
 %token IDENTIFICADOR NUMERO STRING
 %token SUMA RESTA MULTIPLICACION DIVISION
 %token ASIGNACION MENOR_QUE MAYOR_QUE
-%token COMENTARIO
+%token COMENTARIO COMENTARIO_MULTILINEA
 
 %%
 
@@ -24,21 +24,18 @@ asignacion:
 ;
 
 if_statement:
-    IF expresion bloque
+    IF expresion
 ;
 
 print_statement:
     PRINT expresion
 ;
 
-bloque:
-    sentencia
-  | sentencia bloque
-;
-
 expresion:
     expresion SUMA termino
   | expresion RESTA termino
+  | expresion MENOR_QUE termino
+  | expresion MAYOR_QUE termino
   | termino
 ;
 
@@ -54,3 +51,8 @@ factor:
   | NUMERO
   | STRING
 ;
+
+llamada_print:
+    PRINT expresion
+;
+

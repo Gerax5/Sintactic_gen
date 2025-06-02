@@ -16,18 +16,18 @@ class AutomataLR0:
         I0 = { (self.startSymbolPrime, (self.initial_symbol,), 0) }
         I0 = self.closure(I0)
 
-        print("Building LR(0) automaton...", I0)
+        # print("Building LR(0) automaton...", I0)
 
         self.states.append(I0)
         pendientes = [I0]
         self.estados_id[id(I0)] = 0
         
-        print("STATES:")
-        print(self.states)
-        print("PENDING:")
-        print(pendientes)
-        print("ESTADOS ID:")
-        print(self.estados_id)
+        # print("STATES:")
+        # print(self.states)
+        # print("PENDING:")
+        # print(pendientes)
+        # print("ESTADOS ID:")
+        # print(self.estados_id)
 
         self.estado_aceptacion = None
 
@@ -41,7 +41,7 @@ class AutomataLR0:
             for simbolo_gramatical in self.get_grammar_symbols():
                 # print(f"Simbolo: {simbolo_gramatical}")
                 goto_result = self.goto(I, simbolo_gramatical)
-                print(f"goto_result: {goto_result} for simbolo: {simbolo_gramatical}")
+                # print(f"goto_result: {goto_result} for simbolo: {simbolo_gramatical}")
                 # print(f"goto_result: {goto_result}")
 
 

@@ -92,8 +92,8 @@ class SLR:
             for regla in reglas:
                 producciones_numeradas.append((lhs, regla))
 
-        print("\n--- Inicio del Parsing ---")
-        print(f"Tokens de entrada: {tokens}")
+        # print("\n--- Inicio del Parsing ---")
+        # print(f"Tokens de entrada: {tokens}")
 
         while True:
             estado_actual = stack[-1]
@@ -105,13 +105,13 @@ class SLR:
                 print(f"Error sintáctico: no hay acción definida para estado {estado_actual} con símbolo '{simbolo_actual}'")
                 return False
 
-            print(f"---[Estado {estado_actual}] Acción: {accion} con símbolo '{simbolo_actual}'")
+            # print(f"---[Estado {estado_actual}] Acción: {accion} con símbolo '{simbolo_actual}'")
 
             if accion.startswith('s'):
                 nuevo_estado = int(accion[1:])
                 stack.append(nuevo_estado)
                 index += 1
-                print(f"→ Shift a estado {nuevo_estado}")
+                # print(f"→ Shift a estado {nuevo_estado}")
 
             elif accion.startswith('r'):
                 num = int(accion[1:])
@@ -121,13 +121,13 @@ class SLR:
                 estado_actual = stack[-1]
                 goto_estado = self.goto_table[estado_actual][lhs]
                 stack.append(goto_estado)
-                print(f"← Reduce usando producción: {lhs} → {' '.join(rhs)}")
-                print(f"→ Ir al estado {goto_estado} (goto)")
+                # print(f"← Reduce usando producción: {lhs} → {' '.join(rhs)}")
+                # print(f"→ Ir al estado {goto_estado} (goto)")
 
             elif accion == 'acc':
                 print("Cadena aceptada por el analizador sintáctico.")
                 return True
 
             else:
-                print(f"Acción inválida: {accion}")
+                # print(f"Acción inválida: {accion}")
                 return False
