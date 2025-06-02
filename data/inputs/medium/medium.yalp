@@ -1,0 +1,58 @@
+/* Parser simple para expresiones y asignaciones usando los tokens definidos en el YALex */
+
+%token IF PRINT
+%token IDENTIFICADOR NUMERO STRING
+%token SUMA RESTA MULTIPLICACION DIVISION
+%token ASIGNACION MENOR_QUE MAYOR_QUE
+%token COMENTARIO COMENTARIO_MULTILINEA
+
+%%
+
+programa:
+    programa sentencia
+  | sentencia
+;
+
+sentencia:
+    asignacion
+  | if_statement
+  | print_statement
+;
+
+asignacion:
+    IDENTIFICADOR ASIGNACION expresion
+;
+
+if_statement:
+    IF expresion
+;
+
+print_statement:
+    PRINT expresion
+;
+
+expresion:
+    expresion SUMA termino
+  | expresion RESTA termino
+  | expresion MENOR_QUE termino
+  | expresion MAYOR_QUE termino
+  | termino
+;
+
+termino:
+    termino MULTIPLICACION factor
+  | termino DIVISION factor
+  | factor
+;
+
+factor:
+    PARENTESIS_IZQUIERDO expresion PARENTESIS_DERECHO
+  | IDENTIFICADOR
+  | NUMERO
+  | STRING
+;
+
+llamada_print:
+    PRINT expresion
+;
+
